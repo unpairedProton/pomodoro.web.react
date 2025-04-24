@@ -73,6 +73,20 @@ export default function PomodoroTimer() {
   const changeTimerType = (type) => {
     if (!isRunning) {
       setTimerType(type);
+      // Set appropriate time based on timer type
+      switch(type) {
+        case 'STUDY':
+          setTimeLeft(studyTime * 60);
+          break;
+        case 'BREAK':
+          setTimeLeft(breakTime * 60);
+          break;
+        case 'LONG BREAK':
+          setTimeLeft(longBreakTime * 60);
+          break;
+        default:
+          break;
+      }
     }
   };
 
@@ -343,16 +357,10 @@ export default function PomodoroTimer() {
       {/* Right Panels - increase z-index to be above overlay */}
       <div className="z-40">
         <RightTimer
-          studyTime={studyTime}
-          setStudyTime={setStudyTime}
-          breakTime={breakTime}
-          setBreakTime={setBreakTime}
-          longBreakTime={longBreakTime}
-          setLongBreakTime={setLongBreakTime}
-          updateTimerValue={updateTimerValue}
-          isPanelOpen={isTimerPanelOpen}
-          setIsPanelOpen={setIsTimerPanelOpen}
-          isRunning={isRunning}
+          isOpen={isTimerPanelOpen}
+          onClose={() => setIsTimerPanelOpen(false)}
+          timerType={timerType}
+          setTimeLeft={setTimeLeft}
         />
 
         <RightBackground

@@ -2,6 +2,19 @@ import { createContext, useContext, useState, useEffect } from 'react';
 
 const TimerContext = createContext();
 
+// Default timer settings
+const DEFAULT_SETTINGS = {
+  studyTime: 25,
+  breakTime: 5,
+  longBreakTime: 15
+};
+
+// Load timer settings from localStorage
+const loadTimerSettings = () => {
+  const saved = localStorage.getItem('timerSettings');
+  return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+};
+
 // Initial monthly study data
 const initialMonthlyData = {
   april: {
@@ -39,13 +52,16 @@ const initialMonthlyData = {
 };
 
 export function TimerProvider({ children }) {
+  // Load initial settings from localStorage
+  const initialSettings = loadTimerSettings();
+  
   // Timer settings
-  const [studyTime, setStudyTime] = useState(25);
-  const [breakTime, setBreakTime] = useState(5);
-  const [longBreakTime, setLongBreakTime] = useState(15);
+  const [studyTime, setStudyTime] = useState(initialSettings.studyTime);
+  const [breakTime, setBreakTime] = useState(initialSettings.breakTime);
+  const [longBreakTime, setLongBreakTime] = useState(initialSettings.longBreakTime);
   
   // Timer state
-  const [timeLeft, setTimeLeft] = useState(25 * 60);
+  const [timeLeft, setTimeLeft] = useState(() => initialSettings.studyTime * 60);
   const [isRunning, setIsRunning] = useState(false);
   const [timerType, setTimerType] = useState('STUDY');
   
@@ -59,6 +75,16 @@ export function TimerProvider({ children }) {
     const saved = localStorage.getItem('studyData');
     return saved ? JSON.parse(saved) : {};
   });
+
+  // Save timer settings whenever they change
+  useEffect(() => {
+    const settings = {
+      studyTime,
+      breakTime,
+      longBreakTime
+    };
+    localStorage.setItem('timerSettings', JSON.stringify(settings));
+  }, [studyTime, breakTime, longBreakTime]);
 
   // Save total seconds whenever it changes
   useEffect(() => {
@@ -83,8 +109,8 @@ export function TimerProvider({ children }) {
             newData[month] = {};
           }
           // Initialize or increment the day's study time
-          const currentDaySeconds = (newData[month][day] || 0) * 3600; // Convert hours back to seconds
-          newData[month][day] = (currentDaySeconds + 1) / 3600; // Add one second and convert back to hours
+          const currentDaySeconds = (newData[month][day] || 0) * 3600;
+          newData[month][day] = (currentDaySeconds + 1) / 3600;
           
           // Save to localStorage
           localStorage.setItem('studyData', JSON.stringify(newData));
@@ -153,7 +179,7 @@ export function TimerProvider({ children }) {
     totalStudySeconds,
     setTotalStudySeconds,
     getStudyData,
-    studyData // Add studyData to context
+    studyData
   };
 
   return (
