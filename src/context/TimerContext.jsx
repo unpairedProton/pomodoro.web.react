@@ -45,58 +45,63 @@ export function TimerProvider({ children }) {
   const [longBreakTime, setLongBreakTime] = useState(15);
   
   // Timer state
-  const [timeLeft, setTimeLeft] = useState(25 * 60); // Default 25 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isRunning, setIsRunning] = useState(false);
-  const [timerType, setTimerType] = useState('STUDY'); // STUDY, BREAK, LONG BREAK
+  const [timerType, setTimerType] = useState('STUDY');
   
   // Study time tracking
-  const [totalStudySeconds, setTotalStudySeconds] = useState(0);
-  const [monthlyData, setMonthlyData] = useState(initialMonthlyData);
+  const [totalStudySeconds, setTotalStudySeconds] = useState(() => {
+    const saved = localStorage.getItem('totalStudySeconds');
+    return saved ? parseInt(saved) : 0;
+  });
+  
+  const [studyData, setStudyData] = useState(() => {
+    const saved = localStorage.getItem('studyData');
+    return saved ? JSON.parse(saved) : {};
+  });
 
-  // Initialize monthly study data
-  useEffect(() => {
-    const existingData = localStorage.getItem('monthlyStudy');
-    if (!existingData) {
-      localStorage.setItem('monthlyStudy', JSON.stringify(initialMonthlyData));
-      setMonthlyData(initialMonthlyData);
-    } else {
-      setMonthlyData(JSON.parse(existingData));
-    }
-  }, []);
-
-  // Get monthly study data
-  const getMonthlyStudyData = () => {
-    return monthlyData;
-  };
-
-  // Update monthly study data
-  const updateMonthlyStudyData = (month, day, hours) => {
-    const updatedData = { ...monthlyData };
-    if (!updatedData[month]) {
-      updatedData[month] = {};
-    }
-    updatedData[month][day] = (updatedData[month][day] || 0) + hours;
-    localStorage.setItem('monthlyStudy', JSON.stringify(updatedData));
-    setMonthlyData(updatedData);
-  };
-
-  // Load saved study time from localStorage on mount
-  useEffect(() => {
-    const savedTime = localStorage.getItem('totalStudySeconds');
-    if (savedTime) {
-      setTotalStudySeconds(parseInt(savedTime));
-    }
-  }, []);
-
-  // Save study time to localStorage whenever it changes
+  // Save total seconds whenever it changes
   useEffect(() => {
     localStorage.setItem('totalStudySeconds', totalStudySeconds.toString());
   }, [totalStudySeconds]);
 
-  // Update timer based on current timer type
-  const updateTimerValue = () => {
-    // Only update if timer is not running
-    if (!isRunning) {
+  // Update study data whenever timer is running
+  useEffect(() => {
+    let interval;
+    if (isRunning && timerType === 'STUDY') {
+      interval = setInterval(() => {
+        setTotalStudySeconds(prev => prev + 1);
+        
+        // Update today's study data
+        const now = new Date();
+        const month = now.toLocaleString('default', { month: 'lowercase' });
+        const day = now.getDate().toString().padStart(2, '0');
+        
+        setStudyData(prevData => {
+          const newData = { ...prevData };
+          if (!newData[month]) {
+            newData[month] = {};
+          }
+          // Initialize or increment the day's study time
+          const currentDaySeconds = (newData[month][day] || 0) * 3600; // Convert hours back to seconds
+          newData[month][day] = (currentDaySeconds + 1) / 3600; // Add one second and convert back to hours
+          
+          // Save to localStorage
+          localStorage.setItem('studyData', JSON.stringify(newData));
+          return newData;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [isRunning, timerType]);
+
+  // Timer update effect
+  useEffect(() => {
+    if (!isRunning && (timeLeft === 0 || timerType)) {
       let newTime;
       switch(timerType) {
         case 'STUDY':
@@ -113,20 +118,11 @@ export function TimerProvider({ children }) {
       }
       setTimeLeft(newTime);
     }
-  };
+  }, [timerType, studyTime, breakTime, longBreakTime, isRunning]);
 
-  // Effect to update timer when settings or timer type changes
-  useEffect(() => {
-    // Only update timer value if not running and if timer is at 0 or timer type changed
-    if (!isRunning && (timeLeft === 0 || timerType)) {
-      updateTimerValue();
-    }
-  }, [timerType, studyTime, breakTime, longBreakTime]);
-
-  // Effect for timer countdown
+  // Timer countdown effect
   useEffect(() => {
     let interval = null;
-    
     if (isRunning && timeLeft > 0) {
       interval = setInterval(() => {
         setTimeLeft(timeLeft => timeLeft - 1);
@@ -134,77 +130,30 @@ export function TimerProvider({ children }) {
     } else if (timeLeft === 0) {
       setIsRunning(false);
     }
-    
     return () => clearInterval(interval);
   }, [isRunning, timeLeft]);
 
-  // Effect to track study time
-  useEffect(() => {
-    let interval = null;
-    if (isRunning && timeLeft > 0 && timerType === 'STUDY') {
-      interval = setInterval(() => {
-        setTotalStudySeconds(prev => prev + 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isRunning, timeLeft, timerType]);
-
-  // Save study data to localStorage
-  const saveStudyData = () => {
-    const today = new Date().toISOString().split('T')[0];
-    const studyData = JSON.parse(localStorage.getItem('studyData') || '[]');
-    
-    // Find if there's already an entry for today
-    const todayIndex = studyData.findIndex(item => item.date === today);
-    const hoursStudied = totalStudySeconds / 3600; // Convert seconds to hours
-    
-    if (todayIndex !== -1) {
-      // Update existing entry
-      studyData[todayIndex].hours += hoursStudied;
-    } else {
-      // Add new entry
-      studyData.push({
-        date: today,
-        hours: hoursStudied
-      });
-    }
-    
-    // Keep only last 30 days of data
-    const sortedData = studyData
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
-      .slice(0, 30);
-    
-    localStorage.setItem('studyData', JSON.stringify(sortedData));
+  const getStudyData = () => {
+    return studyData;
   };
 
   const value = {
-    // Timer settings
     studyTime,
     setStudyTime,
     breakTime,
     setBreakTime,
     longBreakTime,
     setLongBreakTime,
-    
-    // Timer state
     timeLeft,
     setTimeLeft,
     isRunning,
     setIsRunning,
     timerType,
     setTimerType,
-    
-    // Study time
     totalStudySeconds,
     setTotalStudySeconds,
-    
-    // Monthly study data functions
-    getMonthlyStudyData,
-    updateMonthlyStudyData,
-    
-    // Functions
-    updateTimerValue,
-    saveStudyData
+    getStudyData,
+    studyData // Add studyData to context
   };
 
   return (
